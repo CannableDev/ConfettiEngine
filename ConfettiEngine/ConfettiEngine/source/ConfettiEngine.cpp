@@ -1,13 +1,10 @@
 #include <iostream>
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+//#include <glm/glm.hpp>
+//#define GLM_ENABLE_EXPERIMENTAL
+//#include <glm/gtx/string_cast.hpp>
 
-#include <glm/glm.hpp>
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/string_cast.hpp>
-
-using namespace glm;
+#include "Application.h"
 
 int main()
 {
@@ -40,6 +37,15 @@ int main()
     glfwTerminate();
     */
 
+    Application* app = new Application();
+
+    try {
+        app->run();
+    }
+    catch (const std::exception& e) {
+        std::cerr << e.what() << std::endl;
+        return EXIT_FAILURE;
+    }
 
     return EXIT_SUCCESS;
 }

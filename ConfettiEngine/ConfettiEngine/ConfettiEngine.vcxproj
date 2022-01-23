@@ -19,6 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="source\Application.cpp" />
+    <ClCompile Include="source\Application.h" />
     <ClCompile Include="source\ConfettiEngine.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
