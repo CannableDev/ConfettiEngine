@@ -17,15 +17,53 @@ public:
     const uint32_t HEIGHT = 600;
     const char* WIND_NAME = "Confetti Engine";
 
+    // VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT = diagnostic, 1
+    // VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT = informational, 16
+    // VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT = warnings but not always errors, 256
+    // VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT = errors or invalid, 4096
+    static const int DEBUG_SEVERITY = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+    // VKAPI_ATTR and VKAPI_CALL ensure the function has the right signature
+    // for vulkan to call it
+    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+        VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+        VkDebugUtilsMessageTypeFlagsEXT type,
+        const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+        void* userData) {
+
+        if (severity >= DEBUG_SEVERITY) {
+            std::cerr << "Validation layer | " << getMessageTypeString(type) << callbackData->pMessage << std::endl;
+        }
+
+        return VK_FALSE;
+    };
+
 private:
 
     GLFWwindow* window;
 
     void initWindow();
 
-    VkInstance instance;
+    const std::vector<const char*> validationLayers = {
+        "VK_LAYER_KHRONOS_validation"
+    };
 
-    void createInstance();
+#ifdef NDEBUG
+    const bool enableValidationLayers = false;
+#else
+    const bool enableValidationLayers = true;
+#endif
+
+    bool checkValidationLayerSupport();
+
+    std::vector<const char*> getRequiredExtensions();
+
+    VkInstance instance;
+    VkDebugUtilsMessengerEXT debugMessenger;
+
+    void createInstance();   
+
+    void setupDebugMessenger();
+    void setupDebugCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& ci);
 
     void initVulkan();
 
@@ -33,6 +71,23 @@ private:
 
     void cleanup();
 
+    static const char* getMessageTypeString(const int type) {
+        const char* msg = "Unknown Message Type:\n";
+
+        switch (type) {
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
+            msg = "General Event:\n";
+            break;
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
+            msg = "Possible Mistake/Specificaiton Violation:\n";
+            break;
+        case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
+            msg = "Performance-Affecting Event:\n";
+            break;
+        }
+
+        return msg;
+    }
 };
 
 #endif
