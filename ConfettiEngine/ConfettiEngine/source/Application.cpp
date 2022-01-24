@@ -1,4 +1,5 @@
 #include "Application.h"
+#include <map>
 
 // extension function, proxy to load vkCreateDebugUtilsMessengerEXT function
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
@@ -141,6 +142,127 @@ void Application::setupDebugCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& ci)
     ci.pUserData = nullptr; // Optional
 }
 
+void Application::pickPhysicalDevice()
+{
+    // find num of devices
+    uint32_t deviceCount = 0;
+    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+    if (deviceCount <= 0) {
+        throw std::runtime_error("ERROR: Failed to find GPUs with Vulkan support");
+    }
+    // get devices
+    std::vector<VkPhysicalDevice> devices(deviceCount);
+    vkEnumeratePhysicalDevices(instance, &deviceCount, &devices[0]);
+    
+    // map of devices
+    std::multimap<int, VkPhysicalDevice> candidates;
+    // check for best suitable device
+    for (const auto& device : devices) {
+        int score = getDeviceScore(device);
+        candidates.insert(std::make_pair(score, device));
+    }
+
+    // saftey check
+    if (candidates.rbegin()->first > 0) {
+        physicalDevice = candidates.rbegin()->second;
+    }
+    else {
+        throw std::runtime_error("ERROR: Failed to find GPUs with Vulkan support");
+    }
+}
+
+int Application::getDeviceScore(VkPhysicalDevice device)
+{
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+    
+    QueueFamilyIndices indices = findQueueFamilies(device);
+    
+    int score = 0;
+
+    // Discrete GPUs have a significant performance advantage
+    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+        score += 1000;
+    }
+
+    // Maximum possible size of textures affects graphics quality
+    score += deviceProperties.limits.maxImageDimension2D;
+
+    // Application can't function without geometry shaders or graphics family queue
+    if (!deviceFeatures.geometryShader || !indices.isComplete()) {
+        return 0;
+    }
+
+    return score;
+}
+
+QueueFamilyIndices Application::findQueueFamilies(VkPhysicalDevice device)
+{
+    QueueFamilyIndices indices;
+
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
+
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, &queueFamilies[0]);
+
+    int i = 0;
+    for (const auto& queueFamily : queueFamilies) {
+        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            indices.graphicsFamily = i;
+        }
+
+        if (indices.isComplete()) break;
+
+        i++;
+    }
+
+    return indices;
+}
+
+void Application::createLogicalDevice()
+{
+    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+    VkDeviceQueueCreateInfo queueCreateInfo{};
+    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+    queueCreateInfo.queueCount = 1;
+    // queue prio influences the scheduling of command buffer execution, is always required
+    float queuePriority = 1.0f;
+    queueCreateInfo.pQueuePriorities = &queuePriority;
+
+    // will use later, enables specific features on device
+    VkPhysicalDeviceFeatures deviceFeatures{};
+
+    // main create structure
+    VkDeviceCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    createInfo.pQueueCreateInfos = &queueCreateInfo;
+    createInfo.queueCreateInfoCount = 1;
+    createInfo.pEnabledFeatures = &deviceFeatures;
+    createInfo.enabledExtensionCount = 0;
+
+    if (enableValidationLayers) {
+        // ignored by up-to-date vulkan, but good backwards compatibility
+        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        createInfo.ppEnabledLayerNames = validationLayers.data();
+    }
+    else {
+        createInfo.enabledLayerCount = 0;
+    }
+
+    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+        throw std::runtime_error("ERROR: Failed to create logical device!");
+    }
+    // setting graphics queue, only using 1 for now
+    vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+}
+
 bool Application::checkValidationLayerSupport()
 {
     // retrieve number of layers
@@ -191,6 +313,8 @@ void Application::initVulkan()
 {
     createInstance();
     setupDebugMessenger();
+    pickPhysicalDevice();
+    createLogicalDevice();
 }
 
 void Application::mainLoop()
@@ -202,6 +326,9 @@ void Application::mainLoop()
 
 void Application::cleanup()
 {
+    // logical device doesn't directly interact with instance, so doesnt need to be destroyed
+    vkDestroyDevice(device, nullptr);
+
     if (enableValidationLayers) {
         DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
     }

@@ -8,6 +8,16 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
+#include <optional>
+
+struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+
+    // when checking for more than one valid value, once the struct is full we can return true
+    bool isComplete() {
+        return graphicsFamily.has_value();
+    }
+};
 
 class Application {
 public:
@@ -64,6 +74,17 @@ private:
 
     void setupDebugMessenger();
     void setupDebugCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& ci);
+
+    // implicitly destroyed when instance is destroyed
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    void pickPhysicalDevice();
+    int getDeviceScore(VkPhysicalDevice device);
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+
+    VkDevice device;
+    // implicitly destroyed when instance is destroyed
+    VkQueue graphicsQueue;
+    void createLogicalDevice();
 
     void initVulkan();
 
