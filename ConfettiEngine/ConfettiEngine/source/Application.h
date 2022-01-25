@@ -12,10 +12,11 @@
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
 
     // when checking for more than one valid value, once the struct is full we can return true
     bool isComplete() {
-        return graphicsFamily.has_value();
+        return graphicsFamily.has_value() && presentFamily.has_value();
     }
 };
 
@@ -74,6 +75,10 @@ private:
 
     void setupDebugMessenger();
     void setupDebugCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& ci);
+
+    VkSurfaceKHR surface;
+    VkQueue presentQueue;
+    void createSurface();
 
     // implicitly destroyed when instance is destroyed
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;

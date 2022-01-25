@@ -1,5 +1,6 @@
 #include "Application.h"
 #include <map>
+#include <set>
 
 // extension function, proxy to load vkCreateDebugUtilsMessengerEXT function
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
@@ -130,6 +131,7 @@ void Application::setupDebugMessenger()
     if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
         throw std::runtime_error("ERROR: Failed to set up debug messenger!");
     }
+    else std::cout << "Debug Messenger Created\n";
 }
 
 void Application::setupDebugCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& ci)
@@ -140,6 +142,14 @@ void Application::setupDebugCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& ci)
     ci.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     ci.pfnUserCallback = debugCallback;
     ci.pUserData = nullptr; // Optional
+}
+
+void Application::createSurface()
+{
+    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) != VK_SUCCESS) {
+        throw std::runtime_error("ERROR: Failed to create window surface!");
+    }
+    else std::cout << "Display Surface Created\n"; 
 }
 
 void Application::pickPhysicalDevice()
@@ -166,6 +176,7 @@ void Application::pickPhysicalDevice()
     // saftey check
     if (candidates.rbegin()->first > 0) {
         physicalDevice = candidates.rbegin()->second;
+        std::cout << "Physical Device Found\n";
     }
     else {
         throw std::runtime_error("ERROR: Failed to find GPUs with Vulkan support");
@@ -192,7 +203,7 @@ int Application::getDeviceScore(VkPhysicalDevice device)
     // Maximum possible size of textures affects graphics quality
     score += deviceProperties.limits.maxImageDimension2D;
 
-    // Application can't function without geometry shaders or graphics family queue
+    // Application can't function without geometry shaders or complete queue
     if (!deviceFeatures.geometryShader || !indices.isComplete()) {
         return 0;
     }
@@ -216,6 +227,14 @@ QueueFamilyIndices Application::findQueueFamilies(VkPhysicalDevice device)
             indices.graphicsFamily = i;
         }
 
+        // checking for window presenting support in queue family
+        VkBool32 presentSupport = false;
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &presentSupport);
+
+        if (presentSupport) {
+            indices.presentFamily = i;
+        }
+
         if (indices.isComplete()) break;
 
         i++;
@@ -228,13 +247,21 @@ void Application::createLogicalDevice()
 {
     QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
-    VkDeviceQueueCreateInfo queueCreateInfo{};
-    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
-    queueCreateInfo.queueCount = 1;
-    // queue prio influences the scheduling of command buffer execution, is always required
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfoVec;
+    std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+    
     float queuePriority = 1.0f;
-    queueCreateInfo.pQueuePriorities = &queuePriority;
+
+    for (uint32_t queueFamily : uniqueQueueFamilies) {
+        VkDeviceQueueCreateInfo queueCreateInfo{};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = queueFamily;
+        queueCreateInfo.queueCount = 1;
+        // queue prio influences the scheduling of command buffer execution, is always required
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
+        queueCreateInfoVec.push_back(queueCreateInfo);
+    }
 
     // will use later, enables specific features on device
     VkPhysicalDeviceFeatures deviceFeatures{};
@@ -242,8 +269,8 @@ void Application::createLogicalDevice()
     // main create structure
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.pQueueCreateInfos = &queueCreateInfo;
-    createInfo.queueCreateInfoCount = 1;
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfoVec.size());
+    createInfo.pQueueCreateInfos = &queueCreateInfoVec[0];
     createInfo.pEnabledFeatures = &deviceFeatures;
     createInfo.enabledExtensionCount = 0;
 
@@ -259,8 +286,11 @@ void Application::createLogicalDevice()
     if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
         throw std::runtime_error("ERROR: Failed to create logical device!");
     }
-    // setting graphics queue, only using 1 for now
+    else std::cout << "Logical Device Created\n";
+
+    // setting graphics queues
     vkGetDeviceQueue(device, indices.graphicsFamily.value(), 0, &graphicsQueue);
+    vkGetDeviceQueue(device, indices.presentFamily.value(), 0, &presentQueue);
 }
 
 bool Application::checkValidationLayerSupport()
@@ -313,6 +343,7 @@ void Application::initVulkan()
 {
     createInstance();
     setupDebugMessenger();
+    createSurface();
     pickPhysicalDevice();
     createLogicalDevice();
 }
@@ -333,6 +364,7 @@ void Application::cleanup()
         DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
     }
 
+    vkDestroySurfaceKHR(instance, surface, nullptr);
     vkDestroyInstance(instance, nullptr);
 
     glfwDestroyWindow(window);
