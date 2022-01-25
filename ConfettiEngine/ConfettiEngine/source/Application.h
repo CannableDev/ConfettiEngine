@@ -101,6 +101,11 @@ private:
     bool checkDeviceExtensionSupport(VkPhysicalDevice device);
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
     
+    VkDevice device;
+    // implicitly destroyed when instance is destroyed
+    VkQueue graphicsQueue;
+    void createLogicalDevice();
+
     VkSwapchainKHR swapChain;
     std::vector<VkImage> swapChainImages;
     VkFormat swapChainImageFormat;
@@ -111,10 +116,8 @@ private:
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
-    VkDevice device;
-    // implicitly destroyed when instance is destroyed
-    VkQueue graphicsQueue;
-    void createLogicalDevice();
+    std::vector<VkImageView> swapChainImageViews;
+    void createImageViews();
 
     void initVulkan();
 
