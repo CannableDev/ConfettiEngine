@@ -1,6 +1,8 @@
 #include "Application.h"
 #include <map>
 #include <set>
+#include <cstdint>
+#include <algorithm>
 
 // extension function, proxy to load vkCreateDebugUtilsMessengerEXT function
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
@@ -203,12 +205,35 @@ int Application::getDeviceScore(VkPhysicalDevice device)
     // Maximum possible size of textures affects graphics quality
     score += deviceProperties.limits.maxImageDimension2D;
 
-    // Application can't function without geometry shaders or complete queue
-    if (!deviceFeatures.geometryShader || !indices.isComplete()) {
+    // Application can't function without geometry shaders or complete queue or required extensions
+    if (!deviceFeatures.geometryShader || !indices.isComplete() || !checkDeviceExtensionSupport(device)) {
+        return 0;
+    }
+
+    // Check for swap chain support, if no support in either format or present return 0
+    SwapChainDetails chainSupport = querySwapChainSupport(device);
+    if (chainSupport.formats.empty() || chainSupport.presentModes.empty()) {
         return 0;
     }
 
     return score;
+}
+
+bool Application::checkDeviceExtensionSupport(VkPhysicalDevice device)
+{
+    uint32_t extensionCount;
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+
+    std::vector<VkExtensionProperties> availableExtensions(extensionCount);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, &availableExtensions[0]);
+
+    std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+
+    for (const auto& extension : availableExtensions) {
+        requiredExtensions.erase(extension.extensionName);
+    }
+
+    return requiredExtensions.empty();
 }
 
 QueueFamilyIndices Application::findQueueFamilies(VkPhysicalDevice device)
@@ -243,6 +268,138 @@ QueueFamilyIndices Application::findQueueFamilies(VkPhysicalDevice device)
     return indices;
 }
 
+void Application::createSwapChain()
+{
+    SwapChainDetails swapChainSupport = querySwapChainSupport(physicalDevice);
+    VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+    VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+    VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+    // recommended to have 1 more than min images in chain, but can't exceed max
+    uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+    // 0 is a special number that means there is no max
+    if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
+        imageCount = swapChainSupport.capabilities.maxImageCount;
+    }
+
+    VkSwapchainCreateInfoKHR createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    createInfo.surface = surface;
+    createInfo.minImageCount = imageCount;
+    createInfo.imageFormat = surfaceFormat.format;
+    createInfo.imageColorSpace = surfaceFormat.colorSpace;
+    createInfo.imageExtent = extent;
+    // image layers always 1 unless making steroscopic 3d apps
+    createInfo.imageArrayLayers = 1;
+    // specifies what kind of operations we'll use the images in the swap chain for
+    // colour is direct display, post process would require it be VK_IMAGE_USAGE_TRANSFER_DST_BIT
+    // post would also require memory operations to transfer final image eventually
+    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+    uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+    // specifying handling swap chain over multiple queue families
+    // if the families are different, we need concurrent image sharing. otherwise is not needed
+    if (indices.graphicsFamily != indices.presentFamily) {
+        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        createInfo.queueFamilyIndexCount = 2;
+        createInfo.pQueueFamilyIndices = queueFamilyIndices;
+    }
+    else {
+        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        createInfo.queueFamilyIndexCount = 0; // Optional
+        createInfo.pQueueFamilyIndices = nullptr; // Optional
+    }
+    // pre transform if required (say rotating 90 degrees for mobile screen)
+    createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
+    // specifies if alpha should be used for blending with other windows. Usually ignore
+    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    // may be required to re-create chain from scratch say if window is resized
+    // complex and will deal with later
+    createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+    if (vkCreateSwapchainKHR(device, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
+        throw std::runtime_error("ERROR: Failed to create swap chain!");
+    }
+    else std::cout << "Swap Chain Created\n";
+
+    // must re-retrieve image count as we only specified minimum, so vulkan could create more
+    vkGetSwapchainImagesKHR(device, swapChain, &imageCount, nullptr);
+    swapChainImages.resize(imageCount);
+    vkGetSwapchainImagesKHR(device, swapChain, &imageCount, swapChainImages.data());
+    // saving format and extents for later use
+    swapChainImageFormat = surfaceFormat.format;
+    swapChainExtent = extent;
+}
+
+SwapChainDetails Application::querySwapChainSupport(VkPhysicalDevice device)
+{
+    SwapChainDetails details;
+    
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
+
+    uint32_t formatCount;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, nullptr);
+    // resize to fit all formats
+    if (formatCount != 0) {
+        details.formats.resize(formatCount);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &formatCount, &details.formats[0]);
+    }
+
+    uint32_t presentModeCount;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, nullptr);
+    // resize to fit all present modes
+    if (presentModeCount != 0) {
+        details.presentModes.resize(presentModeCount);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &presentModeCount, details.presentModes.data());
+    }
+
+    return details;
+}
+
+VkSurfaceFormatKHR Application::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
+{
+    for (const auto& availableFormat : availableFormats) {
+        if (availableFormat.format == DesiredSurfaceFormat && availableFormat.colorSpace == DesiredColourSpace) {
+            return availableFormat;
+        }
+    }
+    // default to first available format if desired combo is not available
+    return availableFormats[0];
+}
+
+VkPresentModeKHR Application::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes)
+{
+    for (const auto& availablePresentMode : availablePresentModes) {
+        if (availablePresentMode == DesiredPresentationMode) {
+            return availablePresentMode;
+        }
+    }
+    // return default present mode if desired is not available
+    return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D Application::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities)
+{
+    // if window manager gives UINT32_MAX we can pick our own resolution that best fits
+    if (capabilities.currentExtent.width != UINT32_MAX) {
+        return capabilities.currentExtent;
+    }
+    else {
+        int width, height;
+        glfwGetFramebufferSize(window, &width, &height);
+
+        VkExtent2D actualExtent = {
+            static_cast<uint32_t>(width),
+            static_cast<uint32_t>(height)
+        };
+
+        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+
+        return actualExtent;
+    }
+}
+
 void Application::createLogicalDevice()
 {
     QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
@@ -272,7 +429,8 @@ void Application::createLogicalDevice()
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfoVec.size());
     createInfo.pQueueCreateInfos = &queueCreateInfoVec[0];
     createInfo.pEnabledFeatures = &deviceFeatures;
-    createInfo.enabledExtensionCount = 0;
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+    createInfo.ppEnabledExtensionNames = &deviceExtensions[0];
 
     if (enableValidationLayers) {
         // ignored by up-to-date vulkan, but good backwards compatibility
@@ -346,6 +504,7 @@ void Application::initVulkan()
     createSurface();
     pickPhysicalDevice();
     createLogicalDevice();
+    createSwapChain();
 }
 
 void Application::mainLoop()
@@ -357,6 +516,7 @@ void Application::mainLoop()
 
 void Application::cleanup()
 {
+    vkDestroySwapchainKHR(device, swapChain, nullptr);
     // logical device doesn't directly interact with instance, so doesnt need to be destroyed
     vkDestroyDevice(device, nullptr);
 

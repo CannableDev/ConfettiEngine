@@ -20,6 +20,12 @@ struct QueueFamilyIndices {
     }
 };
 
+struct SwapChainDetails {
+    VkSurfaceCapabilitiesKHR capabilities;
+    std::vector<VkSurfaceFormatKHR> formats;
+    std::vector<VkPresentModeKHR> presentModes;
+};
+
 class Application {
 public:
     void run();
@@ -53,10 +59,18 @@ private:
     GLFWwindow* window;
 
     void initWindow();
-
+    // requried lavidation layers
     const std::vector<const char*> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
     };
+    // required device extensions
+    const std::vector<const char*> deviceExtensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+
+    const uint32_t DesiredSurfaceFormat = VK_FORMAT_B8G8R8A8_SRGB;
+    const uint32_t DesiredColourSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+    const uint32_t DesiredPresentationMode = VK_PRESENT_MODE_MAILBOX_KHR;
 
 #ifdef NDEBUG
     const bool enableValidationLayers = false;
@@ -84,7 +98,18 @@ private:
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
     void pickPhysicalDevice();
     int getDeviceScore(VkPhysicalDevice device);
+    bool checkDeviceExtensionSupport(VkPhysicalDevice device);
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+    
+    VkSwapchainKHR swapChain;
+    std::vector<VkImage> swapChainImages;
+    VkFormat swapChainImageFormat;
+    VkExtent2D swapChainExtent;
+    void createSwapChain();
+    SwapChainDetails querySwapChainSupport(VkPhysicalDevice device);
+    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
     VkDevice device;
     // implicitly destroyed when instance is destroyed
