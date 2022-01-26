@@ -431,6 +431,11 @@ void Application::createImageViews()
     }
 }
 
+void Application::createGraphicsPipeline()
+{
+
+}
+
 void Application::createLogicalDevice()
 {
     QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
@@ -537,6 +542,7 @@ void Application::initVulkan()
     createLogicalDevice();
     createSwapChain();
     createImageViews();
+    createGraphicsPipeline();
 }
 
 void Application::mainLoop()

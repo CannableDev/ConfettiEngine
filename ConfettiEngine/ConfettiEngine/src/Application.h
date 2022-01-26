@@ -10,6 +10,8 @@
 #include <vector>
 #include <optional>
 
+#include "GraphicsPipeline.h"
+
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
     std::optional<uint32_t> presentFamily;
@@ -118,6 +120,8 @@ private:
 
     std::vector<VkImageView> swapChainImageViews;
     void createImageViews();
+
+    void createGraphicsPipeline();
 
     void initVulkan();
 

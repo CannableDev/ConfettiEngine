@@ -15,14 +15,29 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="source\ConfettiEngine.cpp">
+    <ClCompile Include="src\ConfettiEngine.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\Application.h">
+    <ClCompile Include="src\Application.h">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\Application.cpp">
+    <ClCompile Include="src\Application.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\GraphicsPipeline.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Shaders\Shader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="src\Shaders\testTriangle_vert.vert" />
+    <None Include="src\Shaders\testTriangle_frag.frag" />
+    <None Include="src\Shaders\compileTest.bat">
+      <Filter>Source Files</Filter>
+    </None>
   </ItemGroup>
 </Project>
