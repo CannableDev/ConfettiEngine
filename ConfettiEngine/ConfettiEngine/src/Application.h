@@ -121,6 +121,7 @@ private:
     std::vector<VkImageView> swapChainImageViews;
     void createImageViews();
 
+    GraphicsPipeline* pipeline;
     void createGraphicsPipeline();
 
     void initVulkan();

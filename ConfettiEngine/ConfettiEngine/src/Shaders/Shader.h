@@ -2,14 +2,10 @@
 #define SHADER_H
 
 #include <vector>
+#include <fstream>
 
-class Shader {
-public:
-
-
-	
-private:
-
+namespace Shader {
+	std::vector<char> read(const std::string& filename);
 
 };
 

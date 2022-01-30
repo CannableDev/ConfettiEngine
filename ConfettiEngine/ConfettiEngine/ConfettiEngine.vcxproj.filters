@@ -24,6 +24,12 @@
     <ClCompile Include="src\Application.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Shaders\Shader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GraphicsPipeline.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\GraphicsPipeline.h">
@@ -34,10 +40,10 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="src\Shaders\testTriangle_vert.vert" />
-    <None Include="src\Shaders\testTriangle_frag.frag" />
     <None Include="src\Shaders\compileTest.bat">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="src\Shaders\testTriangle.frag" />
+    <None Include="src\Shaders\testTriangle.vert" />
   </ItemGroup>
 </Project>

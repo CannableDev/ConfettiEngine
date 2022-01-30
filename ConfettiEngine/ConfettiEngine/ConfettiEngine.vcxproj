@@ -22,6 +22,8 @@
     <ClCompile Include="src\Application.cpp" />
     <ClCompile Include="src\Application.h" />
     <ClCompile Include="src\ConfettiEngine.cpp" />
+    <ClCompile Include="src\GraphicsPipeline.cpp" />
+    <ClCompile Include="src\Shaders\Shader.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\GraphicsPipeline.h" />
@@ -29,8 +31,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="src\Shaders\compileTest.bat" />
-    <None Include="src\Shaders\testTriangle_frag.frag" />
-    <None Include="src\Shaders\testTriangle_vert.vert" />
+    <None Include="src\Shaders\testTriangle.frag" />
+    <None Include="src\Shaders\testTriangle.vert" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
