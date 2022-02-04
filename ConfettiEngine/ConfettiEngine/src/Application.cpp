@@ -433,7 +433,7 @@ void Application::createImageViews()
 
 void Application::createGraphicsPipeline()
 {
-    pipeline = new GraphicsPipeline(instance, device, swapChainExtent, "./src/Shaders/testTriangle.vert.spv","./src/Shaders/testTriangle.frag.spv");
+    pipeline = new GraphicsPipeline(instance, device, swapChainExtent, swapChainImageFormat, "./src/Shaders/testTriangle.vert.spv","./src/Shaders/testTriangle.frag.spv");
 }
 
 void Application::createLogicalDevice()

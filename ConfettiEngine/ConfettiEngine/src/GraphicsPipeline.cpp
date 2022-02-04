@@ -2,9 +2,11 @@
 #include "Shaders/Shader.h"
 #include <iostream>
 
-GraphicsPipeline::GraphicsPipeline(VkInstance& i, VkDevice& d, VkExtent2D& e, std::string v, std::string f)
-	: instance(i), device(d), extents(e)
+GraphicsPipeline::GraphicsPipeline(VkInstance& i, VkDevice& d, VkExtent2D& e, VkFormat& s, std::string v, std::string f)
+	: instance(i), device(d), extents(e), swapChainImageFormat(s)
 {
+	createRenderPass();
+
 	//************* SHADER SETUP *************//
 	std::vector<char> vertCode = Shader::read(v);
 	//std::vector<char> geomCode = Shader::read(geom);
@@ -146,6 +148,36 @@ GraphicsPipeline::GraphicsPipeline(VkInstance& i, VkDevice& d, VkExtent2D& e, st
 	}
 	else std::cout << "Graphics Pipeline Layout created successfully\n";
 
+	//************* PIPELINE CREATION *************//
+	VkGraphicsPipelineCreateInfo pipelineInfo{};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipelineInfo.stageCount = 2;
+	pipelineInfo.pStages = &shaderStages[0];
+	pipelineInfo.pVertexInputState = &vertexInputInfo;
+	pipelineInfo.pInputAssemblyState = &inputAssembly;
+	pipelineInfo.pViewportState = &viewportState;
+	pipelineInfo.pRasterizationState = &rasterizer;
+	pipelineInfo.pMultisampleState = &multisampling;
+	pipelineInfo.pDepthStencilState = nullptr; // Optional
+	pipelineInfo.pColorBlendState = &colorBlending;
+	pipelineInfo.pDynamicState = nullptr; // Optional
+	pipelineInfo.layout = pipelineLayout;
+	pipelineInfo.renderPass = renderPass;
+	pipelineInfo.subpass = 0;
+	// can create new pipelines from other existing pipelines, deriving their properties
+	// makes less expensive setup when they have lots of shared features
+	// can use either the handle or the index
+	// These values are only used if the VK_PIPELINE_CREATE_DERIVATIVE_BIT flag is also specified 
+	// in the flags field of VkGraphicsPipelineCreateInfo.
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+	pipelineInfo.basePipelineIndex = -1; // Optional
+
+	// vkCreateGraphicsPipeline can actually be used to make multiple VkPipelines in one call
+	if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+		throw std::runtime_error("ERROR: Failed to create graphics pipeline!");
+	}
+	else std::cout << "Graphics Pipeline created successfully\n";
+
 	//************* CLEANUP *************//
 	vkDestroyShaderModule(device, vert, nullptr);
 	// vkDestroyShaderModule(device, geom, nullptr);
@@ -154,7 +186,9 @@ GraphicsPipeline::GraphicsPipeline(VkInstance& i, VkDevice& d, VkExtent2D& e, st
 
 GraphicsPipeline::~GraphicsPipeline()
 {
+	vkDestroyPipeline(device, graphicsPipeline, nullptr);
 	vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+	vkDestroyRenderPass(device, renderPass, nullptr);
 }
 
 GraphicsPipeline& GraphicsPipeline::operator=(const GraphicsPipeline& other)
@@ -187,4 +221,60 @@ VkShaderModule GraphicsPipeline::createModule(const std::vector<char>& code)
 	}
 
 	return shaderModule;
+}
+
+void GraphicsPipeline::createRenderPass()
+{
+	VkAttachmentDescription colorAttachment{};
+	// single colour buffer
+	colorAttachment.format = swapChainImageFormat;
+	colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	// load options
+	// VK_ATTACHMENT_LOAD_OP_LOAD: Preserve the existing contents of the attachment
+	// VK_ATTACHMENT_LOAD_OP_CLEAR : Clear the values to a constant at the start
+	// VK_ATTACHMENT_LOAD_OP_DONT_CARE : Existing contents are undefined; we don't care about them
+	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	// store options
+	// VK_ATTACHMENT_STORE_OP_STORE: Rendered contents will be stored in memoryand can be read later
+	// VK_ATTACHMENT_STORE_OP_DONT_CARE : Contents of the framebuffer will be undefined after the rendering operation
+	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	// not using a stencil buffer atm so we do not care
+	colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	// layout options
+	// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL: Images used as color attachment
+	// VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : Images to be readied for presention the swap chain
+	// VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL : Images to be used as destination for a memory copy operation
+	// VK_IMAGE_LAYOUT_UNDEFINED : Don't care what the previous layout was
+	colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	VkAttachmentReference colorAttachmentRef{};
+	// attachment reference index
+	colorAttachmentRef.attachment = 0;
+	colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	VkSubpassDescription subpass{};
+	// graphics bind controls all drawing
+	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	subpass.colorAttachmentCount = 1;
+	// layout(location = 0) out vec4 outColor
+	subpass.pColorAttachments = &colorAttachmentRef;
+	// can also set for subpass:
+	// pInputAttachments: Attachments that are read from a shader
+	// pResolveAttachments : Attachments used for multisampling color attachments
+	// pDepthStencilAttachment : Attachment for depthand stencil data
+	// pPreserveAttachments : Attachments that are not used by this subpass, but for which the data must be preserved
+
+	VkRenderPassCreateInfo renderPassInfo{};
+	renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	renderPassInfo.attachmentCount = 1;
+	renderPassInfo.pAttachments = &colorAttachment;
+	renderPassInfo.subpassCount = 1;
+	renderPassInfo.pSubpasses = &subpass;
+
+	if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
+		throw std::runtime_error("ERROR: Failed to create render pass!");
+	}
+	else std::cout << "Render Pass created successfully\n";
 }

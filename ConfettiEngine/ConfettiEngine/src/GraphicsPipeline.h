@@ -10,7 +10,7 @@ class Application;
 
 class GraphicsPipeline {
 public:
-	GraphicsPipeline(VkInstance& i, VkDevice& d, VkExtent2D& e, std::string v, std::string f);
+	GraphicsPipeline(VkInstance& i, VkDevice& d, VkExtent2D& e, VkFormat& s, std::string v, std::string f);
 	// GraphicsPipeline(VkInstance& i, VkDevice& d, std::string v, std::string g, std::string f);
 	~GraphicsPipeline();
 
@@ -25,11 +25,17 @@ private:
 
 	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
+	VkRenderPass renderPass;
+	void createRenderPass();
+
 	VkPipelineLayout pipelineLayout;
+
+	VkPipeline graphicsPipeline;
 
 	VkExtent2D& extents;
 	VkInstance& instance;
 	VkDevice& device;
+	VkFormat& swapChainImageFormat;
 };
 
 #endif
